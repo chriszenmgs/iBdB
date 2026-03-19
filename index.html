@@ -3,21 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BdB Projekt-Logbuch (Secure Cloud)</title>
+    <title>BdB Projekt-Logbuch (Pro-Version)</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; margin: 0; height: 100vh; background-color: #f0f2f5; color: #333; }
         
-        /* Login Screen Styles */
+        /* Login Screen */
         #auth-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100vh; background: #fff; }
         .login-box { padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 300px; text-align: center; background: #f8f9fa; border: 1px solid #ddd;}
         
-        /* App Layout Styles */
+        /* Layout */
         #app-container { display: none; width: 100%; height: 100vh; }
         #sidebar { width: 300px; background: #fff; padding: 20px; border-right: 1px solid #ddd; overflow-y: auto; display: flex; flex-direction: column; }
         #main { flex: 1; padding: 40px; overflow-y: auto; }
         
-        /* Sidebar Elements */
+        /* Sidebar Elemente */
         .folder-title { font-weight: bold; color: #555; margin-top: 15px; margin-bottom: 5px; font-size: 0.9em; text-transform: uppercase; border-bottom: 1px solid #eee; padding-bottom: 3px;}
         .project-item { padding: 8px 12px; cursor: pointer; border-radius: 6px; margin-bottom: 3px; font-size: 0.95em; transition: background 0.2s; margin-left: 10px; }
         .project-item:hover { background: #f0f2f5; }
@@ -25,33 +25,49 @@
         .calendar-btn { background: #fff3cd; color: #856404; font-weight: bold; padding: 12px; border-radius: 6px; cursor: pointer; margin-bottom: 15px; text-align: center; border: 1px solid #ffeeba; }
         .calendar-btn:hover { background: #ffe8a1; }
         
-        /* Entry Elements & Priorities */
+        /* Log Einträge */
         .log-entry { background: #fff; padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .prio-hoch { border-left: 6px solid #dc3545; }
         .prio-mittel { border-left: 6px solid #0d6efd; }
         .prio-niedrig { border-left: 6px solid #198754; }
-        
         .deadline { color: #dc3545; font-weight: bold; font-size: 0.9em; margin-bottom: 10px; display: inline-block; background: #ffebee; padding: 3px 8px; border-radius: 4px;}
         
-        /* Forms & Inputs */
+        /* Kalender Grid */
+        #calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; background: #fff; padding: 10px; border-radius: 8px; border: 1px solid #ddd;}
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+        .cal-header-day { font-weight: bold; text-align: center; background: #e9ecef; padding: 8px; border-radius: 4px; font-size: 0.9em;}
+        .cal-day { border: 1px solid #dee2e6; min-height: 100px; padding: 5px; background: #fff; border-radius: 4px; display: flex; flex-direction: column; }
+        .cal-day.empty { background: transparent; border: none; }
+        .cal-date { font-weight: bold; font-size: 0.8em; margin-bottom: 5px; color: #6c757d; text-align: right;}
+        .cal-item { font-size: 0.75em; padding: 4px; margin-bottom: 3px; border-radius: 3px; cursor: pointer; color: white; line-height: 1.2; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-wrap: break-word;}
+        .cal-item:hover { opacity: 0.8; }
+        .bg-hoch { background-color: #dc3545; }
+        .bg-mittel { background-color: #0d6efd; }
+        .bg-niedrig { background-color: #198754; }
+        
+        /* Formulare & Buttons */
         input, textarea, select { width: 100%; margin-bottom: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-family: inherit; }
         button { background: #0d6efd; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; transition: background 0.2s;}
         button:hover { background: #0b5ed7; }
-        .btn-danger { background: #dc3545; width: auto; padding: 6px 12px; font-size: 0.8em; }
+        .btn-small { width: auto; padding: 6px 12px; font-size: 0.8em; margin-left: 5px;}
+        .btn-danger { background: #dc3545; }
         .btn-danger:hover { background: #bb2d3b; }
+        .btn-edit { background: #ffc107; color: #000; }
+        .btn-edit:hover { background: #e0a800; }
         .btn-outline { background: transparent; color: #6c757d; border: 1px solid #6c757d; margin-top: 10px; }
         .btn-outline:hover { background: #6c757d; color: white; }
+        .btn-cancel { background: #6c757d; display: none; margin-top: 10px;}
         
-        .form-box { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 30px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); border: 1px solid #e1e4e8;}
+        .form-box { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 30px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); border: 1px solid #e1e4e8; transition: border-color 0.3s;}
+        .form-editing { border: 2px solid #ffc107; box-shadow: 0 0 10px rgba(255, 193, 7, 0.2); }
     </style>
 </head>
 <body>
 
-<!-- LOGIN SCREEN -->
+<!-- LOGIN -->
 <div id="auth-screen">
     <div class="login-box">
         <h2 style="margin-top:0;">🔒 BdB Logbuch</h2>
-        <p style="font-size: 0.9em; color: #666;">Bitte melde dich an.</p>
         <input type="email" id="login-email" placeholder="E-Mail Adresse">
         <input type="password" id="login-password" placeholder="Passwort">
         <button onclick="login()">Einloggen</button>
@@ -59,16 +75,19 @@
     </div>
 </div>
 
-<!-- MAIN APP -->
+<!-- APP -->
 <div id="app-container">
     <div id="sidebar">
-        <div class="calendar-btn" onclick="showCalendar()">📅 Alle Stichtage</div>
-        
+        <div class="calendar-btn" onclick="showCalendar()">📅 Monats-Kalender</div>
         <div id="sidebar-projects" style="flex: 1; overflow-y: auto;"></div>
         
         <hr style="border:0; border-top:1px solid #ddd; margin: 15px 0;">
-        <div style="font-size: 0.85em; margin-bottom: 5px;">Neues Projekt:</div>
-        <input type="text" id="new-folder-name" placeholder="Ordner (z.B. Schulen)">
+        <div style="font-size: 0.85em; margin-bottom: 5px;">Neues Projekt anlegen:</div>
+        
+        <!-- DROPDOWN FÜR ORDNER -->
+        <input list="folder-list" id="new-folder-name" placeholder="Ordner (Tippen oder Wählen)">
+        <datalist id="folder-list"></datalist>
+        
         <input type="text" id="new-project-name" placeholder="Projektname">
         <button onclick="addProject()">+ Anlegen</button>
         <button class="btn-outline" onclick="logout()">Ausloggen</button>
@@ -77,16 +96,16 @@
     <div id="main">
         <div id="welcome-screen">
             <h2>👋 Willkommen im Projekt-Logbuch!</h2>
-            <p>Wähle links ein Projekt oder den Stichtag-Kalender aus.</p>
+            <p>Wähle links ein Projekt oder den Kalender aus.</p>
         </div>
         
         <!-- PROJEKT ANSICHT -->
         <div id="project-view" style="display: none;">
             <div style="font-size: 0.9em; color: #666; text-transform: uppercase;" id="current-folder-title">Ordner</div>
-            <h2 id="current-project-title" style="color: #0d6efd; margin-top: 0; border-bottom: 2px solid #e7f1ff; padding-bottom: 10px;">Projektname</h2>
+            <h2 id="current-project-title" style="color: #0d6efd; margin-top: 0; border-bottom: 2px solid #e7f1ff; padding-bottom: 10px;">Projekt</h2>
             
-            <div class="form-box">
-                <h3>📝 Neuen Log-Eintrag</h3>
+            <div class="form-box" id="entry-form-box">
+                <h3 id="form-title">📝 Neuen Log-Eintrag erstellen</h3>
                 <div style="display: flex; gap: 15px;">
                     <div style="flex: 1;">
                         <label style="font-size: 0.9em; color: #555;">Stichtag (optional):</label>
@@ -97,22 +116,27 @@
                         <select id="new-entry-prio">
                             <option value="mittel">🟦 Mittel (Standard)</option>
                             <option value="hoch">🟥 Hoch (Wichtig)</option>
-                            <option value="niedrig">🟩 Niedrig (Nice-to-have)</option>
+                            <option value="niedrig">🟩 Niedrig (Info)</option>
                         </select>
                     </div>
                 </div>
-                <label style="font-size: 0.9em; color: #555;">Notiz / Fortschritt:</label>
                 <textarea id="new-entry-text" rows="3" placeholder="Was ist passiert?"></textarea>
-                <button onclick="addEntry()">Eintrag speichern</button>
+                <button id="save-btn" onclick="saveEntry()">Eintrag speichern</button>
+                <button id="cancel-btn" class="btn-cancel" onclick="cancelEdit()">Abbrechen</button>
             </div>
 
             <div id="log-list"></div>
         </div>
 
-        <!-- KALENDER / STICHTAGE ANSICHT -->
+        <!-- KALENDER ANSICHT -->
         <div id="calendar-view" style="display: none;">
-            <h2 style="color: #856404; border-bottom: 2px solid #ffeeba; padding-bottom: 10px;">📅 Anstehende Stichtage</h2>
-            <div id="calendar-list"></div>
+            <h2 style="color: #856404; margin-top: 0;">📅 Stichtage & Deadlines</h2>
+            <div id="calendar-header">
+                <button style="width: auto;" onclick="changeMonth(-1)">◀ Letzter</button>
+                <h3 id="calendar-month-year" style="margin: 0;">Monat Jahr</h3>
+                <button style="width: auto;" onclick="changeMonth(1)">Nächster ▶</button>
+            </div>
+            <div id="calendar-grid" class="calendar-grid"></div>
         </div>
     </div>
 </div>
@@ -120,7 +144,6 @@
 <script>
     // ==========================================
     // 🛑 HIER DEINE SUPABASE DATEN EINTRAGEN 🛑
-    // Wichtig: Die ' (einfachen Anführungszeichen) stehen lassen!
     // ==========================================
     const SUPABASE_URL = 'https://zrcrxucthgmxwvydocrm.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_D4lhxYHJ0wOGA4E6vVwc7w_ZpeHvNBU';
@@ -131,6 +154,8 @@
     let currentProject = null;
     let currentFolder = null;
     let currentUser = null;
+    let editingId = null; // Speichert die ID des Eintrags, der gerade bearbeitet wird
+    let calDate = new Date(); // Aktuelles Datum für den Kalender
 
     // --- AUTHENTIFIZIERUNG ---
     async function checkUser() {
@@ -149,16 +174,9 @@
     async function login() {
         const email = document.getElementById('login-email').value;
         const password = document.getElementById('login-password').value;
-        const errorDiv = document.getElementById('auth-error');
-        
-        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-        
-        if (error) {
-            errorDiv.innerText = "Falsche E-Mail oder Passwort.";
-        } else {
-            errorDiv.innerText = "";
-            checkUser();
-        }
+        const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (error) document.getElementById('auth-error').innerText = "Fehlerhafte Anmeldung.";
+        else checkUser();
     }
 
     async function logout() {
@@ -166,7 +184,7 @@
         checkUser();
     }
 
-    // --- DATEN LADEN ---
+    // --- DATEN LADEN & ORDNER UPDATE ---
     async function loadData() {
         const { data, error } = await supabaseClient
             .from('logs')
@@ -175,27 +193,33 @@
 
         if (!error) {
             allLogs = data;
+            updateFolderDatalist();
             renderSidebar();
             if (currentProject) renderProjectView();
+            if (document.getElementById('calendar-view').style.display === 'block') renderCalendar();
         }
     }
 
-    // --- PROJEKT & ORDNER ANLEGEN ---
+    function updateFolderDatalist() {
+        const datalist = document.getElementById('folder-list');
+        datalist.innerHTML = '';
+        const folders = [...new Set(allLogs.map(log => log.folder_name))].sort();
+        folders.forEach(folder => {
+            const option = document.createElement('option');
+            option.value = folder;
+            datalist.appendChild(option);
+        });
+    }
+
+    // --- PROJEKT ANLEGEN ---
     async function addProject() {
         let folder = document.getElementById('new-folder-name').value.trim() || 'Allgemein';
         let project = document.getElementById('new-project-name').value.trim();
-        
         if (!project) return alert("Bitte Projektname eingeben.");
         
-        const newEntry = {
-            folder_name: folder,
-            project_name: project,
-            note: "🚀 Projekt angelegt",
-            priority: "niedrig",
-            user_id: currentUser.id
-        };
-
+        const newEntry = { folder_name: folder, project_name: project, note: "🚀 Projekt angelegt", priority: "niedrig", user_id: currentUser.id };
         const { error } = await supabaseClient.from('logs').insert([newEntry]);
+        
         if (!error) {
             document.getElementById('new-folder-name').value = '';
             document.getElementById('new-project-name').value = '';
@@ -204,15 +228,14 @@
         }
     }
 
-    // --- EINTRAG ANLEGEN ---
-    async function addEntry() {
+    // --- EINTRAG SPEICHERN (NEU ODER BEARBEITET) ---
+    async function saveEntry() {
         const dateInput = document.getElementById('new-entry-date').value;
         const prioInput = document.getElementById('new-entry-prio').value;
         const textInput = document.getElementById('new-entry-text').value.trim();
-        
         if (!textInput || !currentProject) return;
 
-        const newEntry = {
+        const payload = {
             folder_name: currentFolder,
             project_name: currentProject,
             note: textInput,
@@ -221,13 +244,56 @@
             user_id: currentUser.id
         };
 
-        const { error } = await supabaseClient.from('logs').insert([newEntry]);
-        if (!error) {
-            document.getElementById('new-entry-date').value = '';
-            document.getElementById('new-entry-text').value = '';
-            document.getElementById('new-entry-prio').value = 'mittel';
-            loadData();
+        let error;
+        if (editingId) {
+            // BEARBEITEN
+            const res = await supabaseClient.from('logs').update(payload).eq('id', editingId);
+            error = res.error;
+        } else {
+            // NEU ANLEGEN
+            const res = await supabaseClient.from('logs').insert([payload]);
+            error = res.error;
         }
+
+        if (!error) {
+            cancelEdit(); // Setzt Formular zurück
+            loadData();
+        } else {
+            alert("Fehler beim Speichern.");
+        }
+    }
+
+    // --- EDIT-MODUS AKTIVIEREN / ABBRECHEN ---
+    function startEdit(id) {
+        const entry = allLogs.find(l => l.id === id);
+        if (!entry) return;
+        
+        editingId = id;
+        document.getElementById('new-entry-date').value = entry.deadline || '';
+        document.getElementById('new-entry-prio').value = entry.priority || 'mittel';
+        document.getElementById('new-entry-text').value = entry.note;
+        
+        // Optisches Feedback für Edit-Modus
+        document.getElementById('form-title').innerText = "✏️ Eintrag bearbeiten";
+        document.getElementById('save-btn').innerText = "💾 Änderungen speichern";
+        document.getElementById('save-btn').style.background = "#28a745";
+        document.getElementById('cancel-btn').style.display = "block";
+        document.getElementById('entry-form-box').classList.add('form-editing');
+        
+        window.scrollTo(0, 0); // Scrollt nach oben zum Formular
+    }
+
+    function cancelEdit() {
+        editingId = null;
+        document.getElementById('new-entry-date').value = '';
+        document.getElementById('new-entry-prio').value = 'mittel';
+        document.getElementById('new-entry-text').value = '';
+        
+        document.getElementById('form-title').innerText = "📝 Neuen Log-Eintrag erstellen";
+        document.getElementById('save-btn').innerText = "Eintrag speichern";
+        document.getElementById('save-btn').style.background = "#0d6efd";
+        document.getElementById('cancel-btn').style.display = "none";
+        document.getElementById('entry-form-box').classList.remove('form-editing');
     }
 
     // --- EINTRAG LÖSCHEN ---
@@ -238,79 +304,56 @@
         }
     }
 
-    // --- SIDEBAR RENDERN (Mit Ordnern) ---
+    // --- SIDEBAR & NAVIGATION ---
     function renderSidebar() {
         const list = document.getElementById('sidebar-projects');
         list.innerHTML = '';
-        
-        // Ordnerstruktur extrahieren
         const folders = {};
         allLogs.forEach(log => {
             if(!folders[log.folder_name]) folders[log.folder_name] = new Set();
             folders[log.folder_name].add(log.project_name);
         });
 
-        // Alphabetisch sortieren und anzeigen
         Object.keys(folders).sort().forEach(folderName => {
-            const folderDiv = document.createElement('div');
-            folderDiv.className = 'folder-title';
-            folderDiv.innerText = `📂 ${folderName}`;
-            list.appendChild(folderDiv);
-
+            const fDiv = document.createElement('div'); fDiv.className = 'folder-title'; fDiv.innerText = `📂 ${folderName}`; list.appendChild(fDiv);
             [...folders[folderName]].sort().forEach(projectName => {
-                const projDiv = document.createElement('div');
-                projDiv.className = 'project-item' + (projectName === currentProject ? ' active-project' : '');
-                projDiv.innerText = projectName;
-                projDiv.onclick = () => selectProject(folderName, projectName);
-                list.appendChild(projDiv);
+                const pDiv = document.createElement('div');
+                pDiv.className = 'project-item' + (projectName === currentProject ? ' active-project' : '');
+                pDiv.innerText = projectName;
+                pDiv.onclick = () => selectProject(folderName, projectName);
+                list.appendChild(pDiv);
             });
         });
     }
 
-    // --- NAVIGATION ---
     function selectProject(folderName, projectName) {
-        currentFolder = folderName;
-        currentProject = projectName;
+        cancelEdit(); // Falls man beim Wechseln noch im Edit-Modus war
+        currentFolder = folderName; currentProject = projectName;
         document.getElementById('welcome-screen').style.display = 'none';
         document.getElementById('calendar-view').style.display = 'none';
         document.getElementById('project-view').style.display = 'block';
-        
         document.getElementById('current-folder-title').innerText = folderName;
         document.getElementById('current-project-title').innerText = projectName;
-        
-        renderSidebar();
-        renderProjectView();
+        renderSidebar(); renderProjectView();
     }
 
-    function showCalendar() {
-        currentProject = null;
-        currentFolder = null;
-        document.getElementById('welcome-screen').style.display = 'none';
-        document.getElementById('project-view').style.display = 'none';
-        document.getElementById('calendar-view').style.display = 'block';
-        
-        renderSidebar();
-        renderCalendar();
-    }
-
-    // --- PROJEKT ANSICHT RENDERN ---
     function renderProjectView() {
-        const list = document.getElementById('log-list');
-        list.innerHTML = '';
+        const list = document.getElementById('log-list'); list.innerHTML = '';
         const projectLogs = allLogs.filter(log => log.project_name === currentProject && log.folder_name === currentFolder);
 
         projectLogs.forEach(entry => {
             const div = document.createElement('div');
-            // Farbcode-Klasse hinzufügen
             div.className = `log-entry prio-${entry.priority}`;
-            
             let dateStr = new Date(entry.created_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
             let deadlineHtml = entry.deadline ? `<div class="deadline">🎯 Stichtag: ${new Date(entry.deadline).toLocaleDateString('de-DE')}</div>` : '';
             
             div.innerHTML = `
-                <div style="display: flex; justify-content: space-between;">
-                    <div>${deadlineHtml} <span style="font-size: 0.8em; color: #888;">🕒 ${dateStr}</span></div>
-                    <button class="btn-danger" onclick="deleteEntry(${entry.id})">Löschen</button>
+                <div style="display: flex; justify-content: space-between; align-items:flex-start;">
+                    <div>${deadlineHtml} <div style="font-size: 0.8em; color: #888;">🕒 ${dateStr}</div></div>
+                    <div>
+                        <button class="btn-small btn-edit" onclick="startEdit(${entry.id})">✏️</button>
+                        <button class="btn-small btn-danger" onclick="deleteEntry(${entry.id})">🗑️</button>
+                    </div>
                 </div>
                 <div style="white-space: pre-wrap; margin-top: 10px;">${entry.note}</div>
             `;
@@ -318,53 +361,79 @@
         });
     }
 
-    // --- KALENDER RENDERN (Alle Deadlines) ---
-    function renderCalendar() {
-        const list = document.getElementById('calendar-list');
-        list.innerHTML = '';
-        
-        // Alle Einträge mit Stichtag filtern und nach Datum sortieren (älteste/nächste zuerst)
-        const deadlines = allLogs
-            .filter(log => log.deadline !== null)
-            .sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
-
-        if (deadlines.length === 0) {
-            list.innerHTML = '<p>Keine anstehenden Stichtage gefunden.</p>';
-            return;
-        }
-
-        let currentMonth = "";
-
-        deadlines.forEach(entry => {
-            let deadlineDate = new Date(entry.deadline);
-            let monthStr = deadlineDate.toLocaleString('de-DE', { month: 'long', year: 'numeric' });
-
-            // Monatliche Überschriften einfügen
-            if (monthStr !== currentMonth) {
-                const monthDiv = document.createElement('h3');
-                monthDiv.style.marginTop = '20px';
-                monthDiv.innerText = monthStr;
-                list.appendChild(monthDiv);
-                currentMonth = monthStr;
-            }
-
-            const div = document.createElement('div');
-            div.className = `log-entry prio-${entry.priority}`;
-            
-            div.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <div class="deadline" style="margin: 0;">🎯 ${deadlineDate.toLocaleDateString('de-DE')}</div>
-                        <span style="font-size: 0.9em; font-weight: bold; margin-left: 10px;">📁 ${entry.folder_name} / ${entry.project_name}</span>
-                    </div>
-                </div>
-                <div style="white-space: pre-wrap; margin-top: 10px; color: #555; font-size: 0.9em;">${entry.note}</div>
-            `;
-            list.appendChild(div);
-        });
+    // --- KALENDER GRID RENDERN ---
+    function showCalendar() {
+        currentProject = null; currentFolder = null;
+        document.getElementById('welcome-screen').style.display = 'none';
+        document.getElementById('project-view').style.display = 'none';
+        document.getElementById('calendar-view').style.display = 'block';
+        renderSidebar(); renderCalendar();
     }
 
-    // App Starten
+    function changeMonth(delta) {
+        calDate.setMonth(calDate.getMonth() + delta);
+        renderCalendar();
+    }
+
+    function renderCalendar() {
+        const year = calDate.getFullYear();
+        const month = calDate.getMonth();
+        document.getElementById('calendar-month-year').innerText = calDate.toLocaleString('de-DE', { month: 'long', year: 'numeric' });
+
+        const grid = document.getElementById('calendar-grid');
+        grid.innerHTML = '';
+        
+        // Wochentage Kopfzeile
+        const days = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+        days.forEach(d => {
+            const el = document.createElement('div'); el.className = 'cal-header-day'; el.innerText = d; grid.appendChild(el);
+        });
+
+        // Kalenderlogik
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        let startDayOfWeek = firstDay.getDay() - 1; // 0=Mo, 6=So
+        if (startDayOfWeek === -1) startDayOfWeek = 6; // Wenn Sonntag (0), setze auf 6
+
+        // Leere Boxen vor dem 1. des Monats
+        for (let i = 0; i < startDayOfWeek; i++) {
+            const empty = document.createElement('div'); empty.className = 'cal-day empty'; grid.appendChild(empty);
+        }
+
+        // Tage des Monats
+        for (let d = 1; d <= lastDay.getDate(); d++) {
+            const cell = document.createElement('div'); cell.className = 'cal-day';
+            const dateDiv = document.createElement('div'); dateDiv.className = 'cal-date'; dateDiv.innerText = d;
+            
+            // Tagesdatum markieren, wenn es "Heute" ist
+            const heute = new Date();
+            if(d === heute.getDate() && month === heute.getMonth() && year === heute.getFullYear()) {
+                dateDiv.style.color = '#0d6efd'; dateDiv.style.fontSize = '1em'; dateDiv.innerText = d + " (Heute)";
+            }
+            cell.appendChild(dateDiv);
+
+            // Suche Deadlines für exakt diesen Tag (Format YYYY-MM-DD abgleichen)
+            const monthStr = String(month + 1).padStart(2, '0');
+            const dayStr = String(d).padStart(2, '0');
+            const dateStringToCheck = `${year}-${monthStr}-${dayStr}`;
+
+            const dayLogs = allLogs.filter(log => log.deadline === dateStringToCheck);
+            
+            dayLogs.forEach(log => {
+                const item = document.createElement('div');
+                item.className = `cal-item bg-${log.priority}`;
+                item.innerText = `${log.folder_name}: ${log.project_name}`;
+                item.title = log.note; // Text erscheint, wenn man mit der Maus drüberfährt
+                
+                // Klick auf Termin öffnet direkt das Projekt
+                item.onclick = () => selectProject(log.folder_name, log.project_name);
+                cell.appendChild(item);
+            });
+
+            grid.appendChild(cell);
+        }
+    }
+
     checkUser();
 </script>
 
