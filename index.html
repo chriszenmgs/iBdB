@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BdB Projekt-Logbuch (Cloud)</title>
+    <!-- Supabase Bibliothek einbinden -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; margin: 0; height: 100vh; background-color: #f0f2f5; color: #333; }
+        #sidebar { width: 280px; background: #fff; padding: 20px; border-right: 1px solid #ddd; overflow-y: auto; box-shadow: 2px 0 5px rgba(0,0,0,0.05); z-index: 10; }
+        #main { flex: 1; padding: 40px; overflow-y: auto; }
+        .project-item { padding: 12px; cursor: pointer; border-radius: 6px; margin-bottom: 5px; transition: background 0.2s; }
+        .project-item:hover { background: #f0f2f5; }
+        .active-project { background: #e7f1ff; color: #0d6efd; font-weight: bold; }
+        .log-entry { background: #fff; border: 1px solid #e1e4e8; padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .deadline { color: #dc3545; font-weight: bold; font-size: 0.9em; margin-bottom: 10px; display: inline-block; background: #ffebee; padding: 3px 8px; border-radius: 4px;}
+        input[type="text"], input[type="date"], textarea { width: 100%; margin-bottom: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-family: inherit; }
+        button { background: #0d6efd; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; transition: background 0.2s;}
+        button:hover { background: #0b5ed7; }
+        .btn-danger { background: #dc3545; width: auto; padding: 6px 12px; font-size: 0.8em; }
+        .btn-danger:hover { background: #bb2d3b; }
+        .form-box { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 30px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); border: 1px solid #e1e4e8;}
+        h1, h2, h3 { margin-top: 0; }
+        hr { border: 0; border-top: 1px solid #eee; margin: 20px 0; }
+        #status { font-size: 0.8em; color: #666; margin-bottom: 15px; text-align: center; }
+        .loading { opacity: 0.5; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h3>📂 Meine Projekte</h3>
+    <div id="status">🔄 Verbinde mit Datenbank...</div>
+    <div id="project-list"></div>
+    <hr>
+    <input type="text" id="new-project-name" placeholder="Neues Projekt...">
+    <button onclick="addProject()">+ Projekt anlegen</button>
+</div>
+
+<div id="main">
+    <div id="welcome-screen">
+        <h2>👋 Willkommen im Cloud-Logbuch!</h2>
+        <p>Wähle links ein Projekt aus oder lege ein neues an. Deine Daten werden sicher in Echtzeit synchronisiert.</p>
+    </div>
+    
+    <div id="project-view" style="display: none;">
+        <h2 id="current-project-title" style="color: #0d6efd; border-bottom: 2px solid #e7f1ff; padding-bottom: 10px;">Projektname</h2>
+        
+        <div class="form-box">
+            <h3>📝 Neuen Log-Eintrag verfassen</h3>
+            <div style="display: flex; gap: 15px;">
+                <div style="flex: 1;">
+                    <label style="font-size: 0.9em; color: #555;">Stichtag / Deadline (optional):</label>
+                    <input type="date" id="new-entry-date">
+                </div>
+            </div>
+            <label style="font-size: 0.9em; color: #555;">Notiz / Fortschritt:</label>
+            <textarea id="new-entry-text" rows="4" placeholder="Was ist passiert? Welche Aufgaben stehen an?"></textarea>
+            <button id="save-btn" onclick="addEntry()">Eintrag speichern</button>
+        </div>
+
+        <h3>📅 Historie</h3>
+        <div id="log-list"></div>
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // 🛑 HIER DEINE SUPABASE DATEN EINTRAGEN 🛑
+    // ==========================================
+    const SUPABASE_URL = 'DEINE_PROJECT_URL_HIER';
+    const SUPABASE_KEY = 'DEIN_ANON_PUBLIC_KEY_HIER';
+
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let allLogs = [];
+    let currentProject = null;
+
+    // Daten beim Start laden
+    async function loadData() {
+        document.getElementById('status').innerText = "🔄 Lade Daten...";
+        const { data, error } = await supabaseClient
+            .from('logs')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error("Fehler beim Laden:", error);
+            document.getElementById('status').innerText = "❌ Verbindungsfehler";
+            document.getElementById('status').style.color = "red";
+            return;
+        }
+
+        allLogs = data;
+        document.getElementById('status').innerText = "✅ Verbunden";
+        document.getElementById('status').style.color = "green";
+        
+        renderSidebar();
+        if (currentProject) renderProjectView();
+    }
+
+    // Neues Projekt anlegen
+    async function addProject() {
+        const nameInput = document.getElementById('new-project-name');
+        const name = nameInput.value.trim();
+        
+        if (!name) return;
+        
+        const existingProjects = [...new Set(allLogs.map(log => log.project_name))];
+        if (existingProjects.includes(name)) {
+            alert("Ein Projekt mit diesem Namen existiert bereits!");
+            return;
+        }
+
+        // Wir erstellen einen "Start-Eintrag", damit das Projekt in der DB existiert
+        const newEntry = {
+            project_name: name,
+            note: "🚀 Projekt angelegt",
+            deadline: null
+        };
+
+        const { error } = await supabaseClient.from('logs').insert([newEntry]);
+        
+        if (!error) {
+            nameInput.value = '';
+            await loadData(); // Daten neu laden
+            selectProject(name);
+        } else {
+            alert("Fehler beim Anlegen des Projekts.");
+        }
+    }
+
+    function selectProject(name) {
+        currentProject = name;
+        document.getElementById('welcome-screen').style.display = 'none';
+        document.getElementById('project-view').style.display = 'block';
+        document.getElementById('current-project-title').innerText = name;
+        renderSidebar();
+        renderProjectView();
+    }
+
+    // Neuen Eintrag speichern
+    async function addEntry() {
+        const dateInput = document.getElementById('new-entry-date').value;
+        const textInput = document.getElementById('new-entry-text').value.trim();
+        const btn = document.getElementById('save-btn');
+        
+        if (!textInput || !currentProject) return;
+
+        btn.innerText = "Speichert...";
+        btn.classList.add("loading");
+
+        const newEntry = {
+            project_name: currentProject,
+            note: textInput,
+            deadline: dateInput ? dateInput : null
+        };
+
+        const { error } = await supabaseClient.from('logs').insert([newEntry]);
+        
+        btn.innerText = "Eintrag speichern";
+        btn.classList.remove("loading");
+
+        if (!error) {
+            document.getElementById('new-entry-date').value = '';
+            document.getElementById('new-entry-text').value = '';
+            loadData(); // Läd die Ansicht neu
+        } else {
+            alert("Fehler beim Speichern!");
+            console.error(error);
+        }
+    }
+
+    // Eintrag löschen
+    async function deleteEntry(id) {
+        if(confirm('Möchtest du diesen Eintrag wirklich löschen?')) {
+            const { error } = await supabaseClient.from('logs').delete().eq('id', id);
+            if (!error) {
+                loadData();
+            } else {
+                alert("Fehler beim Löschen!");
+            }
+        }
+    }
+
+    // Sidebar (Projekte) rendern
+    function renderSidebar() {
+        const list = document.getElementById('project-list');
+        list.innerHTML = '';
+        
+        // Finde alle einzigartigen Projektnamen
+        const projectNames = [...new Set(allLogs.map(log => log.project_name))].sort();
+        
+        projectNames.forEach(name => {
+            const div = document.createElement('div');
+            div.className = 'project-item' + (name === currentProject ? ' active-project' : '');
+            div.innerText = name;
+            div.onclick = () => selectProject(name);
+            list.appendChild(div);
+        });
+    }
+
+    // Log-Einträge für aktuelles Projekt rendern
+    function renderProjectView() {
+        const list = document.getElementById('log-list');
+        list.innerHTML = '';
+        
+        const projectLogs = allLogs.filter(log => log.project_name === currentProject);
+        
+        if (projectLogs.length === 0) return;
+
+        projectLogs.forEach(entry => {
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            
+            // Datum formatieren
+            let createdDate = new Date(entry.created_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            let deadlineHtml = entry.deadline ? `<div class="deadline">🎯 Stichtag: ${new Date(entry.deadline).toLocaleDateString('de-DE')}</div>` : '';
+            
+            div.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div>
+                        ${deadlineHtml}
+                        <div style="font-size: 0.8em; color: #888; margin-bottom: 10px;">🕒 ${createdDate} Uhr</div>
+                    </div>
+                    <button class="btn-danger" onclick="deleteEntry(${entry.id})">Löschen</button>
+                </div>
+                <div style="white-space: pre-wrap; line-height: 1.5;">${entry.note}</div>
+            `;
+            list.appendChild(div);
+        });
+    }
+
+    // App starten
+    loadData();
+</script>
+
+</body>
+</html>
