@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BdB Projekt-Logbuch (Pro + Drag&Drop)</title>
+    <title>BdB Projekt-Logbuch (Pro + Holidays)</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; margin: 0; height: 100vh; background-color: #f0f2f5; color: #333; }
@@ -34,8 +34,6 @@
         
         /* Log Einträge */
         .log-entry { background: #fff; padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: opacity 0.3s;}
-        .entry-done { opacity: 0.6; }
-        .entry-done .note-text { text-decoration: line-through; color: #888;}
         
         .prio-hoch { border-left: 6px solid #dc3545; }
         .prio-mittel { border-left: 6px solid #0d6efd; }
@@ -48,13 +46,18 @@
         .cal-header-day { font-weight: bold; text-align: center; background: #e9ecef; padding: 8px; border-radius: 4px; font-size: 0.9em;}
         .cal-day { border: 1px solid #dee2e6; min-height: 100px; padding: 5px; background: #fff; border-radius: 4px; display: flex; flex-direction: column; }
         .cal-day.empty { background: transparent; border: none; }
-        .cal-date { font-weight: bold; font-size: 0.8em; margin-bottom: 5px; color: #6c757d; text-align: right;}
+        .cal-date { font-weight: bold; font-size: 0.8em; margin-bottom: 5px; color: #6c757d; display: flex; justify-content: space-between;}
         .cal-item { font-size: 0.75em; padding: 4px; margin-bottom: 3px; border-radius: 3px; cursor: pointer; color: white; line-height: 1.2; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-wrap: break-word;}
         .cal-item:hover { opacity: 0.8; }
         .bg-hoch { background-color: #dc3545; }
         .bg-mittel { background-color: #0d6efd; }
         .bg-niedrig { background-color: #198754; }
-        .cal-done { text-decoration: line-through; opacity: 0.6; }
+        .cal-done { opacity: 0.8; }
+        
+        /* Kalender Hintergründe (Freizeit) */
+        .bg-cal-weekend { background-color: #f8f9fa; }
+        .bg-cal-vacation { background-color: #fff9e6; } /* Leichtes Gelb für Ferien */
+        .bg-cal-holiday { background-color: #ffebee; } /* Leichtes Rot für Feiertage */
         
         /* Formulare & Buttons */
         input[type="text"], input[type="date"], input[type="email"], input[type="password"], textarea, select { width: 100%; margin-bottom: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-family: inherit; }
@@ -137,7 +140,7 @@
                 </div>
                 
                 <label class="checkbox-container" id="done-checkbox-wrapper" style="display: none;">
-                    <input type="checkbox" id="new-entry-done"> Aufgabe ist erledigt ✅
+                    <input type="checkbox" id="new-entry-done"> Aufgabe ist bereits erledigt ✅
                 </label>
                 
                 <textarea id="new-entry-text" rows="3" placeholder="Notiz oder Aufgabe..."></textarea>
@@ -151,6 +154,11 @@
         <!-- KALENDER ANSICHT -->
         <div id="calendar-view" style="display: none;">
             <h2 style="color: #856404; margin-top: 0;">📅 Stichtage & Zeiträume</h2>
+            <div style="display: flex; gap: 15px; margin-bottom: 15px; font-size: 0.85em; color: #666;">
+                <div><span style="display:inline-block; width:12px; height:12px; background:#f8f9fa; border:1px solid #ddd; margin-right:5px;"></span> Wochenende</div>
+                <div><span style="display:inline-block; width:12px; height:12px; background:#fff9e6; border:1px solid #ddd; margin-right:5px;"></span> 🏖️ Schulferien Bayern</div>
+                <div><span style="display:inline-block; width:12px; height:12px; background:#ffebee; border:1px solid #ddd; margin-right:5px;"></span> 🎈 Gesetzl. Feiertag Bayern</div>
+            </div>
             <div id="calendar-header">
                 <button style="width: auto;" onclick="changeMonth(-1)">◀ Letzter</button>
                 <h3 id="calendar-month-year" style="margin: 0;">Monat Jahr</h3>
@@ -186,13 +194,73 @@
         localStorage.setItem('bdB_order', JSON.stringify(projectOrder));
     }
 
-    // --- HILFSFUNKTIONEN ---
+    // --- KALENDER HILFSFUNKTIONEN (Ferien & Feiertage) ---
+    // Gaußsche Osterformel zur Berechnung der beweglichen Feiertage
+    function getEasterDate(year) {
+        const a = year % 19, b = Math.floor(year / 100), c = year % 100;
+        const d = Math.floor(b / 4), e = b % 4;
+        const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+        const h = (19 * a + b - d - g + 15) % 30;
+        const i = Math.floor(c / 4), k = c % 4;
+        const l = (32 + 2 * e + 2 * i - h - k) % 7;
+        const m = Math.floor((a + 11 * h + 22 * l) / 451);
+        const month = Math.floor((h + l - 7 * m + 114) / 31);
+        const day = ((h + l - 7 * m + 114) % 31) + 1;
+        return new Date(year, month - 1, day);
+    }
+
+    function getBavarianHolidays(year) {
+        const easter = getEasterDate(year);
+        const addD = (date, days) => { const r = new Date(date.getTime()); r.setDate(r.getDate() + days); return r; };
+        const fmt = d => `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.`;
+        
+        return {
+            "01.01.": "Neujahr",
+            "06.01.": "Heilige Drei Könige",
+            [fmt(addD(easter, -2))]: "Karfreitag",
+            [fmt(addD(easter, 1))]: "Ostermontag",
+            "01.05.": "Tag der Arbeit",
+            [fmt(addD(easter, 39))]: "Christi Himmelfahrt",
+            [fmt(addD(easter, 50))]: "Pfingstmontag",
+            [fmt(addD(easter, 60))]: "Fronleichnam",
+            "15.08.": "Mariä Himmelfahrt",
+            "03.10.": "Tag der Dt. Einheit",
+            "01.11.": "Allerheiligen",
+            "25.12.": "1. Weihnachtsfeiertag",
+            "26.12.": "2. Weihnachtsfeiertag"
+        };
+    }
+
+    const bavarianVacations = [
+        // 2024
+        { start: "2024-02-12", end: "2024-02-16", name: "Frühjahrsferien" },
+        { start: "2024-03-25", end: "2024-04-06", name: "Osterferien" },
+        { start: "2024-05-21", end: "2024-06-01", name: "Pfingstferien" },
+        { start: "2024-07-25", end: "2024-09-09", name: "Sommerferien" },
+        { start: "2024-10-28", end: "2024-10-31", name: "Herbstferien" },
+        { start: "2024-12-23", end: "2025-01-03", name: "Weihnachtsferien" },
+        // 2025
+        { start: "2025-03-03", end: "2025-03-07", name: "Frühjahrsferien" },
+        { start: "2025-04-14", end: "2025-04-25", name: "Osterferien" },
+        { start: "2025-06-10", end: "2025-06-20", name: "Pfingstferien" },
+        { start: "2025-08-01", end: "2025-09-15", name: "Sommerferien" },
+        { start: "2025-11-03", end: "2025-11-07", name: "Herbstferien" },
+        { start: "2025-12-22", end: "2026-01-05", name: "Weihnachtsferien" },
+        // 2026
+        { start: "2026-02-16", end: "2026-02-20", name: "Frühjahrsferien" },
+        { start: "2026-03-30", end: "2026-04-10", name: "Osterferien" },
+        { start: "2026-05-26", end: "2026-06-05", name: "Pfingstferien" },
+        { start: "2026-08-03", end: "2026-09-14", name: "Sommerferien" },
+        { start: "2026-11-02", end: "2026-11-06", name: "Herbstferien" },
+        { start: "2026-12-23", end: "2027-01-08", name: "Weihnachtsferien" }
+    ];
+
+    // --- HILFSFUNKTIONEN (Daten Parsen) ---
     function parseNoteData(rawNote) {
         let isDone = false;
         let endDate = null;
         let cleanText = rawNote || "";
 
-        // Sicherer Check ohne Regex
         if (cleanText.includes('[[DONE]]')) {
             isDone = true;
             cleanText = cleanText.split('[[DONE]]').join('').trim();
@@ -394,19 +462,15 @@
     function handleDrop(e) {
         e.preventDefault();
         this.classList.remove('drag-over');
-        
         if (draggedItem !== this) {
             const folderName = this.dataset.folder;
             if (draggedItem.dataset.folder !== folderName) return;
-            
             const groupDiv = document.getElementById(`folder-group-${folderName}`);
             const items = [...groupDiv.querySelectorAll('.project-item')];
             const fromIndex = items.indexOf(draggedItem);
             const toIndex = items.indexOf(this);
-            
             items.splice(fromIndex, 1);
             items.splice(toIndex, 0, draggedItem);
-            
             projectOrder[folderName] = items.map(el => el.dataset.project);
             saveLocalPrefs();
             renderSidebar();
@@ -510,23 +574,24 @@
                 deadlineHtml = `<div class="deadline">🎯 Stichtag: ${new Date(entry.deadline).toLocaleDateString('de-DE')}</div>`;
             }
             
-            // Text sicher verpacken (Verhindert Fehler durch Sonderzeichen beim onclick)
             let safeCleanText = parsed.cleanText.split("'").join("\\'").split("\n").join("\\n");
             let safeEndDate = parsed.endDate ? `'${parsed.endDate}'` : `null`;
             
-            let checkHtml = `<input type="checkbox" style="width: auto; margin-right: 10px; cursor: pointer;" ${parsed.isDone ? 'checked' : ''} onchange="toggleQuickDone(${entry.id}, ${parsed.isDone}, ${safeEndDate}, '${safeCleanText}')">`;
+            let checkHtml = `<input type="checkbox" style="cursor: pointer; margin: 0 8px 0 0; transform: scale(1.2);" ${parsed.isDone ? 'checked' : ''} onchange="toggleQuickDone(${entry.id}, ${parsed.isDone}, ${safeEndDate}, '${safeCleanText}')">`;
             
             div.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items:flex-start;">
                     <div>${deadlineHtml} <div style="font-size: 0.8em; color: #888;">🕒 Erstellt: ${dateStr}</div></div>
-                    <div>
-                        <button class="btn-small btn-edit" onclick="startEdit(${entry.id})">✏️</button>
-                        <button class="btn-small btn-danger" onclick="deleteEntry(${entry.id})">🗑️</button>
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                        <label style="cursor: pointer; display: flex; align-items: center; font-size: 0.85em; font-weight: bold; color: #198754; background: #e8f5e9; padding: 6px 10px; border-radius: 4px; margin-right: 5px; border: 1px solid #c8e6c9;">
+                            ${checkHtml} Erledigt
+                        </label>
+                        <button class="btn-small btn-edit" title="Bearbeiten" onclick="startEdit(${entry.id})">✏️</button>
+                        <button class="btn-small btn-danger" title="Löschen" onclick="deleteEntry(${entry.id})">🗑️</button>
                     </div>
                 </div>
-                <div style="display: flex; align-items: flex-start; margin-top: 15px;">
-                    ${checkHtml}
-                    <div class="note-text" style="white-space: pre-wrap; line-height: 1.4; flex: 1;">${parsed.cleanText}</div>
+                <div style="margin-top: 15px;">
+                    <div class="note-text" style="white-space: pre-wrap; line-height: 1.5; color: #333;">${parsed.cleanText}</div>
                 </div>
             `;
             list.appendChild(div);
@@ -568,19 +633,52 @@
         for (let i = 0; i < startDayOfWeek; i++) {
             const empty = document.createElement('div'); empty.className = 'cal-day empty'; grid.appendChild(empty);
         }
+        
+        // Feiertage für das aktuelle Jahr berechnen
+        const holidays = getBavarianHolidays(year);
 
         for (let d = 1; d <= lastDay.getDate(); d++) {
             const cell = document.createElement('div'); cell.className = 'cal-day';
-            const dateDiv = document.createElement('div'); dateDiv.className = 'cal-date'; dateDiv.innerText = d;
+            const dateDiv = document.createElement('div'); dateDiv.className = 'cal-date'; 
             
+            const currentCellDate = new Date(year, month, d, 12, 0, 0);
+            
+            // Format für Feiertags-Prüfung ("DD.MM.")
+            const fmtDay = `${String(d).padStart(2, '0')}.${String(month + 1).padStart(2, '0')}.`;
+            const isHolidayName = holidays[fmtDay];
+            
+            // Format für Ferien-Prüfung
+            const isVacationObj = bavarianVacations.find(v => {
+                return currentCellDate >= new Date(v.start + 'T00:00:00') && currentCellDate <= new Date(v.end + 'T23:59:59');
+            });
+            
+            // Wochenende (0=So, 6=Sa)
+            const isWeekend = currentCellDate.getDay() === 0 || currentCellDate.getDay() === 6;
+
+            // Hintergrundfarben & Icons zuweisen (Feiertag überschreibt Ferien überschreibt Wochenende)
+            let dayHtml = `<span>${d}</span> <span>`;
+            if (isHolidayName) {
+                cell.classList.add('bg-cal-holiday');
+                dayHtml += `<span title="${isHolidayName}">🎈</span>`;
+            } else if (isVacationObj) {
+                cell.classList.add('bg-cal-vacation');
+                dayHtml += `<span title="${isVacationObj.name}">🏖️</span>`;
+            } else if (isWeekend) {
+                cell.classList.add('bg-cal-weekend');
+            }
+            dayHtml += `</span>`;
+            dateDiv.innerHTML = dayHtml;
+            
+            // Heute hervorheben
             const heute = new Date();
             if(d === heute.getDate() && month === heute.getMonth() && year === heute.getFullYear()) {
-                dateDiv.style.color = '#0d6efd'; dateDiv.style.fontSize = '1em'; dateDiv.innerText = d + " (Heute)";
+                dateDiv.style.color = '#0d6efd'; dateDiv.style.fontSize = '1em'; 
+                dateDiv.innerHTML = `<span>${d} (Heute)</span> <span>${isHolidayName ? '🎈' : (isVacationObj ? '🏖️' : '')}</span>`;
             }
+            
             cell.appendChild(dateDiv);
 
-            const currentCellDate = new Date(year, month, d, 12, 0, 0);
-
+            // Einträge einzeichnen
             allLogs.forEach(log => {
                 if(!log.deadline) return;
                 
