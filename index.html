@@ -123,7 +123,7 @@
                         <input type="date" id="new-entry-date">
                     </div>
                     <div style="flex: 1;">
-                        <label style="font-size: 0.9em; color: #555;">End-Datum (optional für Zeitraum):</label>
+                        <label style="font-size: 0.9em; color: #555;">End-Datum (optional):</label>
                         <input type="date" id="new-entry-end-date">
                     </div>
                     <div style="flex: 1;">
@@ -177,7 +177,7 @@
     let editingId = null; 
     let calDate = new Date(); 
 
-    // --- LOKALE EINSTELLUNGEN (Ordner & Sortierung) ---
+    // --- LOKALE EINSTELLUNGEN ---
     let folderStates = JSON.parse(localStorage.getItem('bdB_folders')) || {};
     let projectOrder = JSON.parse(localStorage.getItem('bdB_order')) || {};
 
@@ -186,24 +186,25 @@
         localStorage.setItem('bdB_order', JSON.stringify(projectOrder));
     }
 
-    // --- HILFSFUNKTIONEN: DATEN PARSEN (Der Unsichtbare-Tags-Trick) ---
-    // Extrahiert Erledigt-Status und Enddatum, ohne die DB-Struktur zu ändern
+    // --- HILFSFUNKTIONEN ---
     function parseNoteData(rawNote) {
         let isDone = false;
         let endDate = null;
-        let cleanText = rawNote;
+        let cleanText = rawNote || "";
 
+        // Sicherer Check ohne Regex
         if (cleanText.includes('[[DONE]]')) {
             isDone = true;
-            cleanText = cleanText.replace('[[DONE]]', '');
+            cleanText = cleanText.split('[[DONE]]').join('').trim();
         }
         
-        const endMatch = cleanText.match(/$$
-\[END:(.*?)
-$$\]/);
-        if (endMatch) {
-            endDate = endMatch[1];
-            cleanText = cleanText.replace(endMatch[0], '');
+        let endIdx = cleanText.indexOf('[[END:');
+        if (endIdx !== -1) {
+            let closeIdx = cleanText.indexOf(']]', endIdx);
+            if (closeIdx !== -1) {
+                endDate = cleanText.substring(endIdx + 6, closeIdx);
+                cleanText = cleanText.substring(0, endIdx) + cleanText.substring(closeIdx + 2);
+            }
         }
         
         return { cleanText: cleanText.trim(), isDone, endDate };
@@ -275,7 +276,7 @@ $$\]/);
         if (!error) {
             document.getElementById('new-folder-name').value = '';
             document.getElementById('new-project-name').value = '';
-            folderStates[folder] = true; // Ordner automatisch aufklappen
+            folderStates[folder] = true;
             saveLocalPrefs();
             await loadData();
             selectProject(folder, project);
@@ -292,7 +293,6 @@ $$\]/);
         
         if (!textInput || !currentProject) return;
 
-        // Baut den Text inklusive der unsichtbaren Tags zusammen
         let finalNote = textInput;
         if (endDateInput) finalNote = `[[END:${endDateInput}]] ` + finalNote;
         if (isDone) finalNote = `[[DONE]] ` + finalNote;
@@ -318,19 +318,14 @@ $$\]/);
         if (!error) {
             cancelEdit();
             loadData();
-        } else {
-            alert("Fehler beim Speichern.");
         }
     }
 
-    // --- SCHNELL-ERLEDIGT (Direktklick auf Checkbox in der Liste) ---
-    async function toggleQuickDone(id, currentRawNote) {
-        const parsed = parseNoteData(currentRawNote);
-        let newNote = parsed.cleanText;
-        if (parsed.endDate) newNote = `[[END:${parsed.endDate}]] ` + newNote;
-        
-        // Zustand umkehren
-        if (!parsed.isDone) newNote = `[[DONE]] ` + newNote;
+    // --- SCHNELL-ERLEDIGT ---
+    async function toggleQuickDone(id, isCurrentlyDone, endDate, currentCleanText) {
+        let newNote = currentCleanText;
+        if (endDate) newNote = `[[END:${endDate}]] ` + newNote;
+        if (!isCurrentlyDone) newNote = `[[DONE]] ` + newNote;
         
         await supabaseClient.from('logs').update({ note: newNote }).eq('id', id);
         loadData();
@@ -393,14 +388,8 @@ $$\]/);
         setTimeout(() => this.style.opacity = '0.5', 0);
     }
 
-    function handleDragOver(e) {
-        e.preventDefault();
-        this.classList.add('drag-over');
-    }
-
-    function handleDragLeave(e) {
-        this.classList.remove('drag-over');
-    }
+    function handleDragOver(e) { e.preventDefault(); this.classList.add('drag-over'); }
+    function handleDragLeave(e) { this.classList.remove('drag-over'); }
 
     function handleDrop(e) {
         e.preventDefault();
@@ -408,24 +397,18 @@ $$\]/);
         
         if (draggedItem !== this) {
             const folderName = this.dataset.folder;
-            if (draggedItem.dataset.folder !== folderName) return; // Nur im selben Ordner sortieren
+            if (draggedItem.dataset.folder !== folderName) return;
             
-            // Ermittle die aktuelle Reihenfolge der Elemente im DOM für diesen Ordner
             const groupDiv = document.getElementById(`folder-group-${folderName}`);
             const items = [...groupDiv.querySelectorAll('.project-item')];
-            
-            // Finde Index von Source und Target
             const fromIndex = items.indexOf(draggedItem);
             const toIndex = items.indexOf(this);
             
-            // Verschiebe das Element im Array
             items.splice(fromIndex, 1);
             items.splice(toIndex, 0, draggedItem);
             
-            // Speichere die neue Reihenfolge im LocalStorage
             projectOrder[folderName] = items.map(el => el.dataset.project);
             saveLocalPrefs();
-            
             renderSidebar();
         }
     }
@@ -436,7 +419,7 @@ $$\]/);
     }
 
     function toggleFolder(folderName) {
-        folderStates[folderName] = !folderStates[folderName]; // Toggle state
+        folderStates[folderName] = !folderStates[folderName];
         saveLocalPrefs();
         renderSidebar();
     }
@@ -447,29 +430,24 @@ $$\]/);
         list.innerHTML = '';
         const folders = {};
         
-        // Ordner und Projekte sammeln
         allLogs.forEach(log => {
             if(!folders[log.folder_name]) folders[log.folder_name] = new Set();
             folders[log.folder_name].add(log.project_name);
         });
 
-        // Alphabetisch nach Ordnern
         Object.keys(folders).sort().forEach(folderName => {
-            if (folderStates[folderName] === undefined) folderStates[folderName] = true; // Standard: Aufgeklappt
+            if (folderStates[folderName] === undefined) folderStates[folderName] = true;
 
-            // Ordner-Titel
             const fDiv = document.createElement('div'); 
             fDiv.className = 'folder-title'; 
             fDiv.innerHTML = (folderStates[folderName] ? '📂 ' : '📁 ') + folderName;
             fDiv.onclick = () => toggleFolder(folderName);
             list.appendChild(fDiv);
 
-            // Container für Projekte
             const groupDiv = document.createElement('div');
             groupDiv.className = 'folder-group' + (folderStates[folderName] ? '' : ' folder-collapsed');
             groupDiv.id = `folder-group-${folderName}`;
 
-            // Projekte sortieren (nach gespeicherter Reihenfolge, neue ans Ende)
             let projs = [...folders[folderName]];
             let savedOrder = projectOrder[folderName] || [];
             projs.sort((a, b) => {
@@ -489,16 +467,13 @@ $$\]/);
                 pDiv.dataset.project = projectName;
                 pDiv.draggable = true;
                 
-                // Drag & Drop Event Listeners
                 pDiv.addEventListener('dragstart', handleDragStart);
                 pDiv.addEventListener('dragover', handleDragOver);
                 pDiv.addEventListener('dragleave', handleDragLeave);
                 pDiv.addEventListener('drop', handleDrop);
                 pDiv.addEventListener('dragend', handleDragEnd);
                 
-                pDiv.onclick = (e) => {
-                    if(e.target === pDiv) selectProject(folderName, projectName);
-                };
+                pDiv.onclick = (e) => { if(e.target === pDiv) selectProject(folderName, projectName); };
                 groupDiv.appendChild(pDiv);
             });
             list.appendChild(groupDiv);
@@ -523,13 +498,11 @@ $$\]/);
 
         projectLogs.forEach(entry => {
             const parsed = parseNoteData(entry.note);
-            
             const div = document.createElement('div');
             div.className = `log-entry prio-${entry.priority} ${parsed.isDone ? 'entry-done' : ''}`;
             
             let dateStr = new Date(entry.created_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
             
-            // Datum/Zeitraum Anzeige
             let deadlineHtml = '';
             if (entry.deadline && parsed.endDate) {
                 deadlineHtml = `<div class="deadline">📅 Zeitraum: ${new Date(entry.deadline).toLocaleDateString('de-DE')} - ${new Date(parsed.endDate).toLocaleDateString('de-DE')}</div>`;
@@ -537,8 +510,11 @@ $$\]/);
                 deadlineHtml = `<div class="deadline">🎯 Stichtag: ${new Date(entry.deadline).toLocaleDateString('de-DE')}</div>`;
             }
             
-            // Checkbox generieren
-            let checkHtml = `<input type="checkbox" style="width: auto; margin-right: 10px; cursor: pointer;" ${parsed.isDone ? 'checked' : ''} onchange="toggleQuickDone(${entry.id}, '${entry.note.replace(/'/g, "\\'")}')">`;
+            // Text sicher verpacken (Verhindert Fehler durch Sonderzeichen beim onclick)
+            let safeCleanText = parsed.cleanText.split("'").join("\\'").split("\n").join("\\n");
+            let safeEndDate = parsed.endDate ? `'${parsed.endDate}'` : `null`;
+            
+            let checkHtml = `<input type="checkbox" style="width: auto; margin-right: 10px; cursor: pointer;" ${parsed.isDone ? 'checked' : ''} onchange="toggleQuickDone(${entry.id}, ${parsed.isDone}, ${safeEndDate}, '${safeCleanText}')">`;
             
             div.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items:flex-start;">
@@ -557,7 +533,7 @@ $$\]/);
         });
     }
 
-    // --- KALENDER GRID RENDERN (Multi-Day fähig) ---
+    // --- KALENDER RENDERN ---
     function showCalendar() {
         currentProject = null; currentFolder = null;
         document.getElementById('welcome-screen').style.display = 'none';
@@ -603,8 +579,7 @@ $$\]/);
             }
             cell.appendChild(dateDiv);
 
-            // Prüfe für jeden Log, ob dieser Tag in den Zeitraum fällt
-            const currentCellDate = new Date(year, month, d, 12, 0, 0); // 12 Uhr mittags zur Vermeidung von Zeitzonen-Problemen
+            const currentCellDate = new Date(year, month, d, 12, 0, 0);
 
             allLogs.forEach(log => {
                 if(!log.deadline) return;
@@ -617,7 +592,6 @@ $$\]/);
                 if(parsed.endDate) endDate = new Date(parsed.endDate);
                 endDate.setHours(23,59,59,999);
 
-                // Wenn der Tag im Bereich liegt, Termin einzeichnen
                 if(currentCellDate >= startDate && currentCellDate <= endDate) {
                     const item = document.createElement('div');
                     item.className = `cal-item bg-${log.priority} ${parsed.isDone ? 'cal-done' : ''}`;
@@ -635,7 +609,7 @@ $$\]/);
         }
     }
 
-    checkUser();
+    window.onload = checkUser;
 </script>
 
 </body>
